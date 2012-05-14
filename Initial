@@ -1,0 +1,186 @@
+#!/bin/bash
+clear
+echo "*****************************************************************"
+echo "|               Initial: Initial Arch Setup.                 |"
+echo "*****************************************************************"
+#Run script using: /path/to/Initial
+
+scriptpath="`dirname \"$0\"`"
+
+#Root Check
+#***********
+if [ $USER != root ]; then
+	echo; echo "This script must be run as root. You are running script as: $USER."
+	echo "Either login as root or run script with the \"sudo\" command like: sudo /path/to/Initial"
+	echo "Will now exit. Goodbye! "
+	exit 0
+fi
+
+#Intro
+#******
+echo; echo -n "Hello, this will complete an initial setup of your Arch install You will need internet. Continue? [Y/n]"
+read prompt
+if [ $prompt = n ]; then
+	echo "GOODBYE! "
+	echo
+	exit 0
+fi
+
+#Setup Username and Password
+#There is a check to ask user if username is satisfactory.
+#*********************************************************************************************************
+echo; echo "#Setup a USERNAME and PASSWORD"
+satisfied=0
+while [ $satisfied -eq 0 ]
+do
+	echo "Please type desired USERNAME in lowercase letters ONLY, followed by [ENTER]"
+	echo -n "Leave blank to skip this step: "
+	read user
+	if [ -z "$user" ]; then
+		satisfied=1
+	    echo;echo "--- Username setup skipped"
+	    echo "Your USERNAME will be \"$USER\"."
+	else
+		echo -n "Are you satisfied with \"$user\" as your USERNAME? [Y/n]: "
+		read prompt
+		if [ -z "$prompt" ] || [ $prompt = y ]; then
+			satisfied=1
+			useradd -m -g users -G audio,lp,optical,storage,video,wheel,games,power,scanner -s /bin/bash $user
+	    	echo; echo "--- Your USERNAME: $user was added."
+	    	echo "Will now setup your PASSWORD. Note as you are typing no charachters will be shown."
+			passwd $user
+		elif [ $prompt = n ]; then
+			echo
+		fi
+	fi
+done
+echo
+
+#Internet Connection
+#This is to check if there is an interent connection and, if not, to offer a chance to setup wireless.
+#************************************************************************
+satisfied=0
+while [ $satisfied -eq 0 ]
+do
+	echo;echo "Are you connected to the interenet?"
+	if [ -z "$prompt" ] || [ $prompt = y ]; then
+		echo "Great!"
+	else
+		echo "If you are not connected, you can open another console (ALT+F2) and connect then come back WHEN YOU ARE DONE."
+		echo "If you are not connected to the internet script will finish as there is nothing more we can do."
+		echo "Connect then come back. Waiting..."
+		echo -n "Continue? [Y/n]: "
+		read prompt
+		if [ -z "$prompt" ] || [ $prompt = y ]; then
+			echo "Great!"
+		else
+			echo;echo "Script has nothing more to do. All consequent actions require an internet connection."
+			echo "GOODBYE!";echo; exit 0
+	fi
+done
+connected=1 #After wireless setup, supposed to be connected, otherwise script would have exited.
+
+#System Upgrade
+#***************
+echo "Initiating System Upgrade"
+pacman-db-upgrade
+pacman -Syyu
+
+#Install SUDO
+#*************
+echo; echo "#Install SUDO"
+echo -n "Now we will install the \"sudo\" command, hit [ENTER] to continue or type 's' to skip: "
+read prompt
+if [ -z "$prompt" ]; then
+	pacman -S sudo 
+	echo;echo "Now you will configure 'sudo' by uncommenting (removing the '#' in front of) this line:"
+	echo "%wheel	ALL=(ALL) ALL"
+	echo -n "It is located towards the end of the file. Use Ctrl-x to save and exit. Hit [ENTER] to contnue: "
+	read prompt
+	if [ -z "$prompt" ]; then
+		EDITOR=nano visudo
+		echo "--- Editing of sudo config file DONE! "
+	fi 
+else
+	echo;echo "--- Installing SUDO skipped."
+fi
+
+#Install X and Dependancies
+#***************************
+echo; echo "#Install X"
+echo -n "Now we will install \"X\", hit [Enter] to continue or type 's' to skip: "
+read prompt
+if [ -z "$prompt" ]; then
+	pacman -S xorg-server xorg-xinit xorg-utils xorg-server-utils mesa
+	pacman -S xorg-twm xorg-xclock xterm dbus
+	echo;echo "Now you will need to add dbus to the DAEMONS line in /etc/rc.conf, add this word: dbus
+	to the last line of the file that will show now.Then use Ctrl-x to save and exit. Add to line like this:
+	DAEMONS=(hwclock syslog-ng dbus network crond)"
+	echo -n "Ready? type 'y' when ready: "
+	read prompt
+	nano /etc/rc.conf
+	echo "--- Editing of /etc/rc.conf DONE! ";
+else
+	echo;echo "--- Installing X skipped."
+fi
+
+#Install Video Drivers
+#**********************
+echo; echo "#Install Video Drivers"
+echo -n "Now we will install the video drivers, hit [Enter] to continue or type 's' to skip: "
+read prompt
+if [ -z "$prompt" ]; then
+	lspci
+	echo; echo "Guess: Your card might be:"
+	lspci | grep VGA
+	echo; echo "Above is a list of hardware you have on this machine. To install the correct drivers, identify what
+	kind of video card you own. There is a guess on the bottom of the list that might help you."
+	echo "Once you have identified your video card please type in number corresponding to card chipset brand.
+	Note that these are not proprietary drivers."
+	echo "Possible (Open Source) driver choices:"
+	echo "1 : ATI"
+	echo "2 : Nvidia"
+	echo "3 : Nvidia with 3D support"
+	echo "4 : Intel"
+	echo -n "Your choice, type in number only. Leave blank to skip: "
+	read prompt
+	if  [ -z "$prompt" ]; then
+		echo;echo "--- Installing Video Drivers skipped."
+	elif [ $prompt == 1 ]; then
+		pacman -S xf86-video-ati
+	elif [ $prompt == 2 ]; then
+		pacman -S xf86-video-nouveau
+		cp $scriptpath/Support/NOUVEAU-DRI.CONF /etc/X11/xorg.conf.d/20-nouveau.conf
+	elif [ $prompt == 3 ]; then
+		pacman -S nouveau-dri
+		cp $scriptpath/Support/NOUVEAU-DRI.CONF /etc/X11/xorg.conf.d/20-nouveau.conf
+	elif [ $prompt == 4 ]; then
+		pacman -S xf86-video-intel
+	fi
+else
+	echo;echo "--- Installing Video Drivers skipped."
+fi
+
+#Synaptics Drivers
+#******************
+echo; echo "Is this computer a laptop? If so, we can install synaptics drivers for the touchpad"
+echo -n "Hit [Enter] to continue or type 's' to skip: "
+read prompt
+if [ -z "$prompt" ]; then
+	pacman -S xf86-input-synaptics
+else
+	echo;echo "--- Installing Synaptics Drivers skipped."
+fi
+
+#End of Script
+#**************
+echo; echo "Initial script will end. Initial setup is complete! "
+echo "You should reboot computer now. Then login with the username and password you setup."
+echo "Your username: $user "
+echo; echo "Reboot now? (recommended) [Y/n]: "
+read prompt
+if [ -z "$prompt" ] || [ $prompt == y ] || [ $prompt == Y ]; then
+	reboot
+else
+	echo;echo "GOODBYE!"
+fi

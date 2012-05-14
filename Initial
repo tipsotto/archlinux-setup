@@ -1,4 +1,10 @@
 #!/bin/bash
+
+# Created by: TIPSotto
+# Free to use, distribute and do whatever the hell you want with it.
+# Last Updated: May 13, 2012
+#####################################################################
+
 clear
 echo "*****************************************************************"
 echo "|               Initial: Initial Arch Setup.                 |"
